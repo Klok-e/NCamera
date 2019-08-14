@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">NeuralCamera</string>
+    <string name="text_camera_preview">Camera preview</string>
+    <string name="take_photo_button">Take photo</string>
 </resources>
