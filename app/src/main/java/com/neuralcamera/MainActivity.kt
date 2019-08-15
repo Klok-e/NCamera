@@ -11,71 +11,56 @@ import androidx.core.content.ContextCompat
 import co.infinum.goldeneye.GoldenEye
 import co.infinum.goldeneye.InitCallback
 import co.infinum.goldeneye.PictureCallback
+import co.infinum.goldeneye.config.CameraInfo
 import co.infinum.goldeneye.models.Facing
-import co.infinum.goldeneye.models.FlashMode
-import co.infinum.goldeneye.models.Size
+import co.infinum.goldeneye.models.PreviewScale
 import kotlinx.android.synthetic.main.activity_main.*
 
+class CameraSwapper(private val cameras: Array<CameraInfo>) {
+    private var currentInd = 0
+
+    val currCam: CameraInfo
+        get() = cameras[currentInd]
+
+
+    fun swapCams(): CameraInfo {
+        currentInd++
+        if (currentInd >= cameras.count())
+            currentInd = 0
+        return currCam
+    }
+}
 
 class MainActivity : AppCompatActivity() {
-    private var goldenEye: GoldenEye? = null
-
-    fun takePhoto(@Suppress("UNUSED_PARAMETER") view: View) {
-        goldenEye?.takePicture(object : PictureCallback() {
-            override fun onError(t: Throwable) {
-                println(t.message)
-            }
-
-            override fun onPictureTaken(picture: Bitmap) {
-
-            }
-        })
-    }
-
-    private fun requestAllPermissions() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 0)
-        }
-    }
-
-    private fun openCamera() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            /* Find back camera */
-            val backCamera = goldenEye?.availableCameras?.find { it.facing == Facing.BACK }
-            /* Open back camera */
-            if (backCamera != null) {
-                goldenEye?.open(camera_preview, backCamera, object : InitCallback() {
-                    override fun onError(t: Throwable) {
-                        println("Error: ${t.message}")
-                    }
-                })
-                println(goldenEye?.config?.supportedPictureSizes)
-                println(goldenEye?.config?.supportedPreviewSizes)
-            } else {
-                println("Error: Couldn't find camera")
-            }
-        } else {
-            requestAllPermissions()
-        }
-    }
+    private lateinit var goldenEye: GoldenEye
+    private lateinit var usingCamera: CameraSwapper
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        supportActionBar?.hide()
         setContentView(R.layout.activity_main)
         requestAllPermissions()
 
         goldenEye = GoldenEye.Builder(this).build()
+
+        val cameraList = ArrayList<CameraInfo>()
+        for (facing in arrayOf(Facing.BACK, Facing.FRONT)) {
+            val c = goldenEye.availableCameras.find { it.facing == facing }
+            if (c != null)
+                cameraList.add(c)
+        }
+        usingCamera = CameraSwapper(cameraList.toArray(arrayOfNulls(cameraList.size)))
     }
 
     override fun onResume() {
         super.onResume()
-        openCamera()
+        openCamera(usingCamera.currCam)
     }
 
     override fun onPause() {
         super.onPause()
 
-        goldenEye?.release()
+        goldenEye.release()
     }
 
 
@@ -90,5 +75,43 @@ class MainActivity : AppCompatActivity() {
         init {
             System.loadLibrary("native-lib")
         }
+    }
+
+    private fun requestAllPermissions() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 0)
+        }
+    }
+
+    private fun openCamera(cam: CameraInfo) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestAllPermissions()
+        }
+
+        goldenEye.open(camera_preview, cam, object : InitCallback() {
+            override fun onError(t: Throwable) {
+                println("Error: ${t.message}")
+            }
+        })
+        println(goldenEye.config?.supportedPictureSizes)
+        println(goldenEye.config?.supportedPreviewSizes)
+    }
+
+    // Event listeners
+
+    fun takePhoto(@Suppress("UNUSED_PARAMETER") view: View) {
+        goldenEye.takePicture(object : PictureCallback() {
+            override fun onError(t: Throwable) {
+                println(t.message)
+            }
+
+            override fun onPictureTaken(picture: Bitmap) {
+
+            }
+        })
+    }
+
+    fun swapCamera(@Suppress("UNUSED_PARAMETER") view: View) {
+        openCamera(usingCamera.swapCams())
     }
 }
