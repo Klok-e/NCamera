@@ -1,6 +1,7 @@
 package com.neuralcamera
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Bundle
@@ -13,8 +14,9 @@ import co.infinum.goldeneye.InitCallback
 import co.infinum.goldeneye.PictureCallback
 import co.infinum.goldeneye.config.CameraInfo
 import co.infinum.goldeneye.models.Facing
-import co.infinum.goldeneye.models.PreviewScale
 import kotlinx.android.synthetic.main.activity_main.*
+import java.nio.ByteBuffer
+
 
 class CameraSwapper(private val cameras: Array<CameraInfo>) {
     private var currentInd = 0
@@ -70,6 +72,8 @@ class MainActivity : AppCompatActivity() {
      */
     external fun stringFromJNI(): String
 
+    external fun processImage(img: ByteArray, width: Int, height: Int)
+
     companion object {
         // Used to load the 'native-lib' library on application startup.
         init {
@@ -93,8 +97,8 @@ class MainActivity : AppCompatActivity() {
                 println("Error: ${t.message}")
             }
         })
-        println(goldenEye.config?.supportedPictureSizes)
-        println(goldenEye.config?.supportedPreviewSizes)
+        //println(goldenEye.config?.supportedPictureSizes)
+        //println(goldenEye.config?.supportedPreviewSizes)
     }
 
     // Event listeners
@@ -106,7 +110,25 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onPictureTaken(picture: Bitmap) {
+                val buff = ByteBuffer.allocate(picture.allocationByteCount)
+                picture.copyPixelsToBuffer(buff)
+                processImage(buff.array(), picture.width, picture.height)
+                buff.rewind()
+                picture.copyPixelsFromBuffer(buff)
 
+                // save image on the device
+                val uri = CapturePhotoUtils.insertImage(
+                    contentResolver,
+                    picture,
+                    "got_waifued_${java.util.Calendar.getInstance()}",
+                    ""
+                )
+                println(uri)
+
+                // view in another activity
+                val intent = Intent(applicationContext, ViewImageActivity::class.java)
+                intent.putExtra("DisplayBitmapUri", uri)
+                startActivity(intent)
             }
         })
     }
@@ -114,4 +136,6 @@ class MainActivity : AppCompatActivity() {
     fun swapCamera(@Suppress("UNUSED_PARAMETER") view: View) {
         openCamera(usingCamera.swapCams())
     }
+
+
 }
